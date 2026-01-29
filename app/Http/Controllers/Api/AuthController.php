@@ -5,31 +5,29 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\UserShift;
+use App\Models\Shift;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    /**
+     * Register a new user
+     */
     public function register(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email',
+            'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
             'role' => 'required|in:owner,casher,manager,waiter,kitchen_staff,store_manager,accountant,branch_manager'
         ]);
 
-        $existingUser = User::where('email', $request->email)->first();
-        if ($existingUser) {
-            return response()->json([
-                'status' => false,
-                'message' => 'User with this email already exists',
-            ], 409);
-        }
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password), 
-            'role' => strtolower($request->role), 
+            'password' => Hash::make($request->password),
+            'role' => strtolower($request->role),
         ]);
 
         return response()->json([
@@ -39,6 +37,9 @@ class AuthController extends Controller
         ], 201);
     }
 
+    /**
+     * Login user
+     */
     public function login(Request $request)
     {
         $request->validate([
@@ -54,8 +55,43 @@ class AuthController extends Controller
                 'message' => 'Invalid Credentials'
             ], 401);
         }
+
+        // Only block cashers if no active shift exists
+        if ($user->role === 'casher') {
+            $activeShift = Shift::whereNull('shift_end')->latest('shift_start')->first();
+            if (!$activeShift) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Shift has not started yet. Please wait for owner to start the shift.'
+                ], 403);
+            }
+        }
+
+        // Delete any existing tokens
         $user->tokens()->delete();
+
+        // Create new token
         $token = $user->createToken('api-token')->plainTextToken;
+
+        // Get latest active shift (nullable for non-cashers)
+        // Get latest active shift (nullable for non-cashers)
+        $shift = Shift::whereNull('shift_end')->latest('shift_start')->first();
+
+        try {
+            if ($shift) { // only create if shift exists
+                UserShift::create([
+                    'user_id' => $user->id,
+                    'shift_id' => $shift->id,
+                    'login_at' => now(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Error creating login record',
+                'error' => $e->getMessage()
+            ], 500);
+        }
 
         return response()->json([
             'status' => true,
@@ -66,9 +102,42 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Logout user
+     */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'User not found or not authenticated'
+            ], 401);
+        }
+
+        // Delete current token
+        $user->currentAccessToken()?->delete();
+
+        // Get latest active login session
+        $userShift = UserShift::where('user_id', $user->id)
+            ->whereNull('logout_at')
+            ->latest('login_at')
+            ->first();
+
+        if ($userShift) {
+            try {
+                $userShift->update([
+                    'logout_at' => now()
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Error updating logout time',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }
 
         return response()->json([
             'status' => true,

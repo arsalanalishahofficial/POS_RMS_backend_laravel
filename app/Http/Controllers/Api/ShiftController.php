@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Shift;
 use App\Models\ShiftPause;
 use Illuminate\Support\Facades\Hash;
+use App\Models\UserShift;
 
 class ShiftController extends Controller
 {
@@ -187,6 +188,54 @@ class ShiftController extends Controller
             'shift_end' => $shift->shift_end,
             'paused_times' => $shift->pauses->count(),
             'pauses' => $shift->pauses,
+        ]);
+    }
+
+
+    public function userLoginLogoutByShift($shift_id, $user_id)
+    {
+        $shift = Shift::find($shift_id);
+
+        if (!$shift) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Shift not found'
+            ], 404);
+        }
+
+        $logs = UserShift::with('user:id,name,role')
+            ->where('shift_id', $shift_id)
+            ->where('user_id', $user_id)
+            ->orderBy('login_at', 'asc')
+            ->get();
+
+        if ($logs->isEmpty()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No login/logout record found for this user in this shift'
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => true,
+            'shift' => [
+                'id' => $shift->id,
+                'shift_start' => $shift->shift_start,
+                'shift_end' => $shift->shift_end
+            ],
+            'user' => [
+                'id' => $logs->first()->user->id,
+                'name' => $logs->first()->user->name,
+                'role' => $logs->first()->user->role
+            ],
+            'total_records' => $logs->count(),
+            'logs' => $logs->map(function ($log) {
+                return [
+                    'login_at' => $log->login_at,
+                    'logout_at' => $log->logout_at,
+                    'status' => $log->logout_at ? 'Logged Out' : 'Logged In'
+                ];
+            })
         ]);
     }
 

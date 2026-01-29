@@ -33,6 +33,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/shift/start', [ShiftController::class, 'startShift']);
         Route::post('/shift/close', [ShiftController::class, 'closeShift']);
         Route::post('/shift/todayShiftPauses', [ShiftController::class, 'todayShiftPauses']);
+        Route::get(
+            '/shifts/{shift_id}/user/{user_id}',
+            [ShiftController::class, 'userLoginLogoutByShift']
+        );
     });
 
 
