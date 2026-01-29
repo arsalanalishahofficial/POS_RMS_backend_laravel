@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Hash;
 
 class ShiftController extends Controller
 {
-    // Start a new shift
+
     public function startShift(Request $request)
     {
         $shift = Shift::whereNull('shift_end')->first();
@@ -34,7 +34,7 @@ class ShiftController extends Controller
         ]);
     }
 
-    // Close current shift
+
     public function closeShift(Request $request)
     {
         $shift = Shift::whereNull('shift_end')->first();
@@ -51,7 +51,7 @@ class ShiftController extends Controller
             'is_paused' => false,
         ]);
 
-        // Resume last pause if not resumed
+
         $lastPause = $shift->pauses()->latest()->first();
         if ($lastPause && !$lastPause->resumed_at) {
             $lastPause->update(['resumed_at' => now()]);
@@ -64,7 +64,6 @@ class ShiftController extends Controller
         ]);
     }
 
-    // Pause shift
     public function pauseShift(Request $request)
     {
         $request->validate([
@@ -91,7 +90,7 @@ class ShiftController extends Controller
 
         $shift->update(['is_paused' => true]);
 
-        // Record pause
+
         $shift->pauses()->create(['paused_at' => now()]);
 
         return response()->json([
@@ -101,7 +100,7 @@ class ShiftController extends Controller
         ]);
     }
 
-    // Resume shift
+
     public function resumeShift(Request $request)
     {
         $request->validate([
@@ -128,7 +127,6 @@ class ShiftController extends Controller
 
         $shift->update(['is_paused' => false]);
 
-        // Update last pause with resumed_at
         $lastPause = $shift->pauses()->latest()->first();
         if ($lastPause && !$lastPause->resumed_at) {
             $lastPause->update(['resumed_at' => now()]);
@@ -141,7 +139,6 @@ class ShiftController extends Controller
         ]);
     }
 
-    // Get current shift info
     public function shiftStatus()
     {
         $shift = Shift::whereNull('shift_end')->first();
@@ -161,7 +158,6 @@ class ShiftController extends Controller
         ]);
     }
 
-    // Get all shifts
     public function allShifts()
     {
         $shifts = Shift::with('pauses')->orderBy('shift_start', 'desc')->get();
@@ -172,7 +168,6 @@ class ShiftController extends Controller
         ]);
     }
 
-    // Count today's shift pauses
     public function todayShiftPauses(Request $request)
     {
         $request->validate([

@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    // REGISTER
     public function register(Request $request)
     {
         $request->validate([
@@ -19,7 +18,6 @@ class AuthController extends Controller
             'role' => 'required|in:owner,casher,manager,waiter,kitchen_staff,store_manager,accountant,branch_manager'
         ]);
 
-        // Check if email already exists
         $existingUser = User::where('email', $request->email)->first();
         if ($existingUser) {
             return response()->json([
@@ -27,13 +25,11 @@ class AuthController extends Controller
                 'message' => 'User with this email already exists',
             ], 409);
         }
-
-        // Create user
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password), // secure hashing
-            'role' => strtolower($request->role), // ensure lowercase
+            'password' => Hash::make($request->password), 
+            'role' => strtolower($request->role), 
         ]);
 
         return response()->json([
@@ -43,7 +39,6 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // LOGIN
     public function login(Request $request)
     {
         $request->validate([
@@ -59,11 +54,7 @@ class AuthController extends Controller
                 'message' => 'Invalid Credentials'
             ], 401);
         }
-
-        // Delete previous tokens (single-login per user)
         $user->tokens()->delete();
-
-        // Create new token
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
@@ -75,7 +66,6 @@ class AuthController extends Controller
         ]);
     }
 
-    // LOGOUT
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
