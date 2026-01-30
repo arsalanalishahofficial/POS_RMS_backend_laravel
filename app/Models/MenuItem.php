@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Category;
+use App\Models\Kitchen;
 
 class MenuItem extends Model
 {
@@ -16,7 +18,7 @@ class MenuItem extends Model
         'is_available'
     ];
 
-    
+
     public function category()
     {
         return $this->belongsTo(Category::class);
@@ -26,4 +28,10 @@ class MenuItem extends Model
     {
         return $this->belongsTo(Kitchen::class);
     }
+
+    public function priceHistories()
+    {
+        return $this->hasMany(PriceHistory::class);
+    }
+
 }

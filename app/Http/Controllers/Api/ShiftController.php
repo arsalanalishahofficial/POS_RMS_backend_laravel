@@ -169,7 +169,7 @@ class ShiftController extends Controller
         ]);
     }
 
-    public function todayShiftPauses(Request $request)
+    public function pauseHistory(Request $request)
     {
         $request->validate([
             'shift_id' => 'required|exists:shifts,id',
@@ -192,7 +192,7 @@ class ShiftController extends Controller
     }
 
 
-    public function userLoginLogoutByShift($shift_id, $user_id)
+    public function userLogHistory($shift_id, $user_id)
     {
         $shift = Shift::find($shift_id);
 

@@ -11,9 +11,7 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    /**
-     * Register a new user
-     */
+    
     public function register(Request $request)
     {
         $request->validate([
@@ -37,9 +35,7 @@ class AuthController extends Controller
         ], 201);
     }
 
-    /**
-     * Login user
-     */
+   
     public function login(Request $request)
     {
         $request->validate([
@@ -56,7 +52,6 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Only block cashers if no active shift exists
         if ($user->role === 'casher') {
             $activeShift = Shift::whereNull('shift_end')->latest('shift_start')->first();
             if (!$activeShift) {
@@ -67,18 +62,14 @@ class AuthController extends Controller
             }
         }
 
-        // Delete any existing tokens
         $user->tokens()->delete();
 
-        // Create new token
         $token = $user->createToken('api-token')->plainTextToken;
 
-        // Get latest active shift (nullable for non-cashers)
-        // Get latest active shift (nullable for non-cashers)
         $shift = Shift::whereNull('shift_end')->latest('shift_start')->first();
 
         try {
-            if ($shift) { // only create if shift exists
+            if ($shift) { 
                 UserShift::create([
                     'user_id' => $user->id,
                     'shift_id' => $shift->id,
@@ -102,9 +93,7 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * Logout user
-     */
+ 
     public function logout(Request $request)
     {
         $user = $request->user();
@@ -116,10 +105,9 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Delete current token
+   
         $user->currentAccessToken()?->delete();
 
-        // Get latest active login session
         $userShift = UserShift::where('user_id', $user->id)
             ->whereNull('logout_at')
             ->latest('login_at')
