@@ -9,6 +9,31 @@ use Exception;
 
 class RestaurantsInfoController extends Controller
 {
+    // =========================
+    // HELPER: FORMAT RESTAURANT INFO
+    // =========================
+    private function formatInfo(RestaurantsInfo $info)
+    {
+        $created = $info->created_at->copy()->timezone(config('app.timezone'));
+        $updated = $info->updated_at->copy()->timezone(config('app.timezone'));
+
+        return [
+            'id' => $info->id,
+            'name' => $info->name,
+            'address' => $info->address,
+            'phone_number' => $info->phone_number,
+            'promo_tagline_top' => $info->promo_tagline_top,
+            'promo_tagline_bottom' => $info->promo_tagline_bottom,
+            'date_created' => $created->format('Y-m-d'),
+            'time_created' => $created->format('h:i A'),
+            'date_updated' => $updated->format('Y-m-d'),
+            'time_updated' => $updated->format('h:i A'),
+        ];
+    }
+
+    // =========================
+    // GET RESTAURANT INFO
+    // =========================
     public function index()
     {
         try {
@@ -18,13 +43,13 @@ class RestaurantsInfoController extends Controller
                 return response()->json([
                     'status' => false,
                     'message' => 'No restaurant info found',
-                    'data' => null  
-                ], 200); 
+                    'data' => null
+                ], 200);
             }
 
             return response()->json([
                 'status' => true,
-                'data' => $info
+                'data' => $this->formatInfo($info)
             ]);
 
         } catch (Exception $e) {
@@ -37,8 +62,9 @@ class RestaurantsInfoController extends Controller
         }
     }
 
-
-
+    // =========================
+    // CREATE OR UPDATE RESTAURANT INFO
+    // =========================
     public function store(Request $request)
     {
         try {
@@ -61,13 +87,14 @@ class RestaurantsInfoController extends Controller
             return response()->json([
                 'status' => true,
                 'message' => 'Restaurant info saved successfully',
-                'data' => $info
+                'data' => $this->formatInfo($info)
             ]);
 
         } catch (Exception $e) {
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to save restaurant info',
+                'data' => null,
                 'error' => $e->getMessage()
             ], 500);
         }

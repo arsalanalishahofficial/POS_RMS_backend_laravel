@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\OrderReceipt;
 
 class Order extends Model
 {
@@ -12,7 +13,7 @@ class Order extends Model
 
     protected $fillable = [
         'type',
-        'status',       
+        'status',
         'waiter_id',
         'table_id',
         'floor_id',
@@ -26,11 +27,11 @@ class Order extends Model
 
     protected $casts = [
         'is_cancelled' => 'boolean',
-        'grand_total'  => 'float',
-        'discount'     => 'float',
-        'net_total'    => 'float',
-        'cash_received'=> 'float',
-        'change_due'   => 'float',
+        'grand_total' => 'float',
+        'discount' => 'float',
+        'net_total' => 'float',
+        'cash_received' => 'float',
+        'change_due' => 'float',
     ];
 
     // --------------------
@@ -68,5 +69,22 @@ class Order extends Model
     {
         return $this->status === 'completed';
     }
-    
+
+    public function getReceiptNumberAttribute()
+    {
+        // Determine current 3-day cycle start
+        $created = $this->created_at ?? now();
+        $dayNumber = $created->diffInDays(now()->startOfYear());
+        $cycleStart = now()->startOfYear()->addDays(intdiv($dayNumber, 3) * 3)->toDateString();
+
+        // Lock to prevent race condition
+        $receipt = OrderReceipt::firstOrCreate(
+            ['cycle_start' => $cycleStart],
+            ['current_number' => 0]
+        );
+
+        return $receipt->current_number + 1; // temporary, will update after order created
+    }
+
+
 }

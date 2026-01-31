@@ -8,6 +8,9 @@ use App\Models\Category;
 
 class CategoryController extends Controller
 {
+    // =========================
+    // LIST CATEGORIES
+    // =========================
     public function index(Request $request)
     {
         $query = Category::with('kitchen');
@@ -21,13 +24,18 @@ class CategoryController extends Controller
         }
 
         $categories = $query->get()->map(function ($category) {
+            $created = $category->created_at->copy()->timezone(config('app.timezone'));
+            $updated = $category->updated_at->copy()->timezone(config('app.timezone'));
+
             return [
                 'id' => $category->id,
                 'name' => $category->name,
                 'kitchen_id' => $category->kitchen_id,
                 'kitchen_name' => $category->kitchen->name ?? null,
-                'created_at' => $category->created_at,
-                'updated_at' => $category->updated_at
+                'date_created' => $created->format('Y-m-d'),
+                'time_created' => $created->format('h:i A'),
+                'date_updated' => $updated->format('Y-m-d'),
+                'time_updated' => $updated->format('h:i A'),
             ];
         });
 
@@ -38,7 +46,9 @@ class CategoryController extends Controller
         ]);
     }
 
-
+    // =========================
+    // CREATE CATEGORY
+    // =========================
     public function store(Request $request)
     {
         $request->validate([
@@ -48,10 +58,22 @@ class CategoryController extends Controller
 
         $category = Category::create($request->all());
 
+        $created = $category->created_at->copy()->timezone(config('app.timezone'));
+        $updated = $category->updated_at->copy()->timezone(config('app.timezone'));
+
         return response()->json([
             'status' => true,
             'message' => 'Category created',
-            'data' => $category
+            'data' => [
+                'id' => $category->id,
+                'name' => $category->name,
+                'kitchen_id' => $category->kitchen_id,
+                'kitchen_name' => $category->kitchen->name ?? null,
+                'date_created' => $created->format('Y-m-d'),
+                'time_created' => $created->format('h:i A'),
+                'date_updated' => $updated->format('Y-m-d'),
+                'time_updated' => $updated->format('h:i A'),
+            ]
         ], 201);
     }
 }

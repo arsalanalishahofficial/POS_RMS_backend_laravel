@@ -34,7 +34,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders/complete-all', [OrderController::class, 'completeAll']);
     // Update an existing order (add/update items)
     Route::put('orders/{id}', [OrderController::class, 'update']);
-
+    // Get active dine-in order by table ID
+    Route::get('/orders/dinein/table/{tableId}', [OrderController::class, 'dineInOrderByTable']);
+    // Get takeaway order by order ID
+    Route::get('/orders/takeaway/{orderId}', [OrderController::class, 'takeawayOrderById']);
 
     Route::post(
         '/orders/{order}/collect-remaining',
@@ -52,7 +55,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tables/reserved', [TableController::class, 'reservedTables']);
     Route::get('tables/reserved/waiter/{waiterId}', [TableController::class, 'reservedTablesByWaiter']);
     Route::post('/tables/{id}/divide', [TableController::class, 'divideTable']);
-
+    Route::post('waiters/{waiterId}/insert-money', [TableController::class, 'insertMoneyToWaiter']);
+    Route::post('waiters/{waiterId}/return-money', [TableController::class, 'returnMoneyFromWaiter']);
+    Route::get('waiters/{waiterId}/transactions', [TableController::class, 'waiterTransactions']);
 
 
     Route::get('/getallfloors', [FloorController::class, 'index']);
