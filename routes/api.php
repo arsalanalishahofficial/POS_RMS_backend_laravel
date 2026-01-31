@@ -34,24 +34,26 @@ Route::middleware('auth:sanctum')->group(function () {
     // -------------------
     // ORDERS
     // -------------------
-    Route::get('/orders/dinein/table/{tableId}', [OrderController::class, 'dineInOrderByTable']);
-    Route::get('/orders/takeaway/{receiptNumber}', [OrderController::class, 'takeawayOrderById']);
-    Route::get('/orders/delivery', [OrderController::class, 'deliveryOrdersByStatus']);
-    Route::get('/orders/in-progress', [OrderController::class, 'inProgress']);
-    Route::get('/orders/{id}', [OrderController::class, 'show']); // generic order route last
-
-    Route::post('/orders', [OrderController::class, 'store']);
-    Route::put('/orders/{id}', [OrderController::class, 'update']);
+    Route::get('/orders/takeaway/{receiptNumber}', [OrderController::class, 'takeawayOrderByreceiptNumber']);
     Route::patch('/orders/{receiptNumber}/cancel', [OrderController::class, 'cancel']);
-    Route::post('/orders/{id}/complete', [OrderController::class, 'complete']);
-    Route::post('/orders/complete-all', [OrderController::class, 'completeAll']);
-    Route::post('/orders/complete-by-waiter/{waiterId}', [OrderController::class, 'completeAllByWaiter']);
-    Route::post('/orders/{order}/collect-remaining', [OrderController::class, 'collectRemaining']);
-    Route::post('/orders/{orderId}/delivery-status', [OrderController::class, 'changeDeliveryStatus']);
-    Route::post('/orders/bulk/delivery-status', [OrderController::class, 'bulkChangeDeliveryStatus']);
 
-    Route::get('/riders/{riderId}/stats', [OrderController::class, 'riderStats']);
-    Route::get('/riders/stats', [OrderController::class, 'allRidersStats']);
+    Route::get('/orders/dinein/table/{tableId}', [OrderController::class, 'dineInOrderByTable']);
+    Route::post('/orders/dinein/{id}/complete', [OrderController::class, 'complete']);
+    Route::post('/orders/dinein/complete-all', [OrderController::class, 'completeAll']);
+    Route::post('/orders/dinein/complete-by-waiter/{waiterId}', [OrderController::class, 'completeAllByWaiter']);
+    Route::put('/orders/dinein/update/{id}', [OrderController::class, 'update']);
+
+
+    Route::get('/orders/delivery', [OrderController::class, 'deliveryOrdersByStatus']);
+    Route::post('/orders/delivery/{orderId}/change-status', [OrderController::class, 'changeDeliveryStatus']);
+    Route::post('/orders/delivery/bulk-status', [OrderController::class, 'bulkChangeDeliveryStatus']);
+    Route::get('/orders/riders/{riderId}/stats', [OrderController::class, 'riderStats']);
+    Route::get('/orders/riders/stats', [OrderController::class, 'allRidersStats']);
+
+    Route::get('/orders/in-progress', [OrderController::class, 'inProgress']);
+    Route::post('/orders', [OrderController::class, 'store']);
+    
+
 
     // -------------------
     // WAITERS

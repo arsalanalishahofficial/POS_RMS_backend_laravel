@@ -59,28 +59,25 @@ class OrderController extends Controller
     {
         $orders = Order::with(['items.menuItem', 'waiter', 'table', 'floor', 'customer', 'rider'])
             ->where('status', 'in_progress')
-            ->where('is_cancelled', false)
+            ->where(function ($q) {
+                $q->where('is_cancelled', false)
+                    ->orWhereNull('is_cancelled');
+            })
             ->latest()
             ->get();
 
+        $grandTotal = $orders->sum('grand_total');
+
         return response()->json([
             'status' => true,
+            'summary' => [
+                'grand_total' => $grandTotal,
+                'net_total' => $grandTotal
+            ],
             'data' => OrderResource::collection($orders),
         ]);
     }
 
-    // =========================
-    // SHOW SINGLE ORDER
-    // =========================
-    public function show($id)
-    {
-        $order = Order::with(['items.menuItem', 'waiter', 'table', 'floor', 'customer', 'rider'])->findOrFail($id);
-
-        return response()->json([
-            'status' => true,
-            'data' => new OrderResource($order),
-        ]);
-    }
 
     // =========================
     // CREATE ORDER
@@ -233,8 +230,13 @@ class OrderController extends Controller
         try {
             $order = Order::with('items')->findOrFail($id);
 
-            if ($order->status === 'cancelled') {
-                return response()->json(['status' => false, 'message' => 'Cannot update a cancelled order'], 400);
+            if ($order->status !== 'in_progress') {
+                DB::rollBack();
+
+                return response()->json([
+                    'status' => false,
+                    'message' => 'No Orders To Update'
+                ], 400);
             }
 
             foreach ($request->items as $itemData) {
@@ -251,11 +253,14 @@ class OrderController extends Controller
                 }
 
                 $existingItem = $order->items->firstWhere('menu_item_id', $menuItem->id);
+
                 if ($existingItem) {
+                    $newQty = $existingItem->quantity + (int) $itemData['qty'];
+
                     $existingItem->update([
-                        'quantity' => $existingItem->quantity + (int) $itemData['qty'],
+                        'quantity' => $newQty,
                         'price' => $price,
-                        'total' => $price * ($existingItem->quantity + (int) $itemData['qty']),
+                        'total' => $price * $newQty,
                     ]);
                 } else {
                     OrderItem::create([
@@ -269,7 +274,8 @@ class OrderController extends Controller
             }
 
             $order->refresh();
-            $grandTotal = $order->items->sum(fn($i) => $i->total);
+
+            $grandTotal = $order->items->sum('total');
             $discount = $request->discount ?? $order->discount ?? 0;
             $netTotal = $grandTotal - $discount;
             $cashReceived = $request->cash_received ?? $order->cash_received ?? 0;
@@ -288,6 +294,7 @@ class OrderController extends Controller
             ]);
 
             DB::commit();
+
             $order->load(['items.menuItem', 'waiter', 'table', 'floor', 'customer', 'rider']);
 
             return response()->json([
@@ -298,9 +305,13 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
+
 
     // =========================
 // GET DELIVERY ORDERS BY STATUS
@@ -338,7 +349,7 @@ class OrderController extends Controller
         });
 
         return response()->json([
-            'status' => true,
+            'status' => $orders->isEmpty() ? false : true,
             'data' => $data,
             'message' => $orders->isEmpty()
                 ? ($status ? "No delivery orders found with status '$status'." : "No delivery orders found.")
@@ -363,10 +374,28 @@ class OrderController extends Controller
         $order = Order::findOrFail($orderId);
 
         if ($order->type !== 'delivery') {
-            return response()->json(['status' => false, 'message' => 'Not a delivery order'], 400);
+            return response()->json([
+                'status' => false,
+                'message' => 'Not a delivery order'
+            ], 400);
         }
 
-        $order->update(['delivery_status' => $request->delivery_status]);
+        // Update delivery_status
+        $order->delivery_status = $request->delivery_status;
+
+        // Sync overall status for delivery orders
+        if ($request->delivery_status === 'delivered' || $request->delivery_status === 'cash_collected') {
+            $order->status = 'completed';
+        } elseif ($request->delivery_status === 'cancelled') {
+            $order->status = 'cancelled';
+            $order->is_cancelled = true;
+        }
+        // "preparing" keeps status as-is
+
+        $order->save();
+
+        // Reload related data if needed
+        $order->load(['items.menuItem', 'customer', 'rider']);
 
         return response()->json([
             'status' => true,
@@ -526,13 +555,27 @@ class OrderController extends Controller
         try {
             $orders = Order::where('type', 'dinein')
                 ->where('status', 'in_progress')
-                ->where('is_cancelled', false)
+                ->where(function ($q) {
+                    $q->where('is_cancelled', false)
+                        ->orWhereNull('is_cancelled');
+                })
                 ->get();
+
+            if ($orders->isEmpty()) {
+                DB::rollBack();
+
+                return response()->json([
+                    'status' => false,
+                    'message' => 'No dine-in orders to complete'
+                ], 404);
+            }
 
             foreach ($orders as $order) {
                 $order->update(['status' => 'completed']);
+
                 if ($order->table_id) {
-                    Table::where('id', $order->table_id)->update(['status' => 'free']);
+                    Table::where('id', $order->table_id)
+                        ->update(['status' => 'free']);
                 }
             }
 
@@ -546,9 +589,13 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
+
 
     // =========================
 // COMPLETE ALL ORDERS BY WAITER
@@ -623,7 +670,7 @@ class OrderController extends Controller
     // =========================
     // TAKEAWAY ORDER BY RECEIPT NUMBER
     // =========================
-    public function takeawayOrderById($receiptNumber)
+    public function takeawayOrderByreceiptNumber($receiptNumber)
     {
         $now = now();
         $dayNumber = $now->diffInDays(now()->startOfYear());
