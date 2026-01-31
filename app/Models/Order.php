@@ -11,6 +11,9 @@ class Order extends Model
 {
     use HasFactory, SoftDeletes;
 
+    // --------------------
+    // Fillable fields
+    // --------------------
     protected $fillable = [
         'type',
         'status',
@@ -22,9 +25,17 @@ class Order extends Model
         'net_total',
         'cash_received',
         'change_due',
+        'delivery_charge',   
+        'delivery_status',   
+        'receipt_number',  
+        'customer_id',
+        'rider_id',
         'is_cancelled'
     ];
 
+    // --------------------
+    // Casts
+    // --------------------
     protected $casts = [
         'is_cancelled' => 'boolean',
         'grand_total' => 'float',
@@ -32,6 +43,7 @@ class Order extends Model
         'net_total' => 'float',
         'cash_received' => 'float',
         'change_due' => 'float',
+        'delivery_charge' => 'float',   
     ];
 
     // --------------------
@@ -57,8 +69,18 @@ class Order extends Model
         return $this->belongsTo(Floor::class);
     }
 
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function rider()
+    {
+        return $this->belongsTo(Rider::class);
+    }
+
     // --------------------
-    // Helpers (optional but useful)
+    // Helpers
     // --------------------
     public function isInProgress()
     {
@@ -70,21 +92,30 @@ class Order extends Model
         return $this->status === 'completed';
     }
 
+    public function isDelivery()
+    {
+        return $this->type === 'delivery';
+    }
+
+    public function isDelivered()
+    {
+        return $this->delivery_status === 'delivered';
+    }
+
+    // --------------------
+    // Receipt number (2-day cycle)
+    // --------------------
     public function getReceiptNumberAttribute()
     {
-        // Determine current 3-day cycle start
         $created = $this->created_at ?? now();
         $dayNumber = $created->diffInDays(now()->startOfYear());
-        $cycleStart = now()->startOfYear()->addDays(intdiv($dayNumber, 3) * 3)->toDateString();
+        $cycleStart = now()->startOfYear()->addDays(intdiv($dayNumber, 2) * 2)->toDateString();
 
-        // Lock to prevent race condition
         $receipt = OrderReceipt::firstOrCreate(
             ['cycle_start' => $cycleStart],
             ['current_number' => 0]
         );
 
-        return $receipt->current_number + 1; // temporary, will update after order created
+        return $receipt->current_number + 1;
     }
-
-
 }

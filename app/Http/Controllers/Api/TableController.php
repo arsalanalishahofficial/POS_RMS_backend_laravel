@@ -64,6 +64,83 @@ class TableController extends Controller
     }
 
     // =========================
+// RESERVED TABLES SUMMARY WITH NET TOTAL
+// =========================
+    public function reservedTablesSummary()
+    {
+        $tables = Table::with(['floor', 'waiter', 'orders.items.menuItem'])
+            ->where('status', 'reserved')
+            ->get();
+
+        if ($tables->isEmpty()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No reserved tables found',
+                'summary' => [
+                    'total_reserved_tables' => 0,
+                    'total_order_price' => 0,
+                    'net_total' => 0,
+                ],
+                'data' => []
+            ]);
+        }
+
+        $totalOrderPrice = 0;
+
+        $data = $tables->map(function ($table) use (&$totalOrderPrice) {
+            // Orders in progress for this table
+            $ordersData = $table->orders
+                ->where('status', 'in_progress')
+                ->map(function ($order) use (&$totalOrderPrice) {
+                    $items = $order->items->map(function ($item) {
+                        return [
+                            'menu_item_id' => $item->menu_item_id,
+                            'menu_item_name' => $item->menuItem ? $item->menuItem->name : null,
+                            'quantity' => $item->quantity,
+                            'price' => $item->price,
+                            'total' => $item->total,
+                        ];
+                    });
+
+                    $totalOrderPrice += $order->grand_total;
+
+                    return [
+                        'order_id' => $order->id,
+                        'grand_total' => $order->grand_total,
+                        'net_total' => $order->net_total,
+                        'items' => $items,
+                        'date_created' => $order->created_at->copy()->timezone(config('app.timezone'))->format('Y-m-d'),
+                        'time_created' => $order->created_at->copy()->timezone(config('app.timezone'))->format('h:i A'),
+                    ];
+                })->values();
+
+            return [
+                'table_id' => $table->id,
+                'table_name' => $table->name,
+                'floor_id' => $table->floor_id,
+                'floor_name' => $table->floor ? $table->floor->name : null,
+                'waiter_id' => $table->waiter_id,
+                'waiter_name' => $table->waiter ? $table->waiter->name : null,
+                'status' => $table->status,
+                'orders' => $ordersData,
+            ];
+        });
+
+        // Here net_total = total_order_price
+        $netTotal = $totalOrderPrice;
+
+        return response()->json([
+            'status' => true,
+            'summary' => [
+                'total_reserved_tables' => $tables->count(),
+                'total_order_price' => $totalOrderPrice,
+                'net_total' => $netTotal,
+            ],
+            'data' => $data
+        ]);
+    }
+
+    // =========================
     // CREATE NEW TABLE
     // =========================
     public function store(Request $request)
