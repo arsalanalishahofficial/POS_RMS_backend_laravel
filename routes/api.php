@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\TerminalController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\WaiterController;
 use App\Http\Controllers\Api\TableController;
+use App\Http\Controllers\Api\RiderController;
 
 // -------------------
 // PUBLIC ROUTES
@@ -36,12 +37,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // -------------------
     Route::get('/orders/takeaway/{receiptNumber}', [OrderController::class, 'takeawayOrderByreceiptNumber']);
     Route::patch('/orders/{receiptNumber}/cancel', [OrderController::class, 'cancel']);
+    Route::patch('/orders/{id}/cancelDineInByOrderId', [OrderController::class, 'cancelDineInByOrderId']);
 
+    
     Route::get('/orders/dinein/table/{tableId}', [OrderController::class, 'dineInOrderByTable']);
     Route::post('/orders/dinein/{id}/complete', [OrderController::class, 'complete']);
     Route::post('/orders/dinein/complete-all', [OrderController::class, 'completeAll']);
     Route::post('/orders/dinein/complete-by-waiter/{waiterId}', [OrderController::class, 'completeAllByWaiter']);
-    Route::put('/orders/dinein/update/{id}', [OrderController::class, 'update']);
+
 
 
     Route::get('/orders/delivery', [OrderController::class, 'deliveryOrdersByStatus']);
@@ -50,9 +53,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/riders/{riderId}/stats', [OrderController::class, 'riderStats']);
     Route::get('/orders/riders/stats', [OrderController::class, 'allRidersStats']);
 
+
     Route::get('/orders/in-progress', [OrderController::class, 'inProgress']);
     Route::post('/orders', [OrderController::class, 'store']);
-    
+    Route::put('/orders/update/{id}', [OrderController::class, 'update']);
+
+
+    // -------------------
+    // WAITERS
+    // -------------------
+    Route::get('/riders', [RiderController::class, 'index']);               // Get all riders
+    Route::post('/riders', [RiderController::class, 'store']);             // Create a new rider
+    Route::get('/riders/{id}', [RiderController::class, 'show']);          // Get single rider
+    Route::put('/riders/{id}', [RiderController::class, 'update']);        // Update rider
+    Route::delete('/riders/{id}', [RiderController::class, 'destroy']);
 
 
     // -------------------
