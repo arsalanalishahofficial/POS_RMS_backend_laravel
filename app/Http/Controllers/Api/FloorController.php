@@ -63,4 +63,20 @@ class FloorController extends Controller
             'message' => 'Floor deleted successfully',
         ]);
     }
+
+    public function floorsWithReservedCount()
+    {
+        $floors = Floor::withCount([
+            'tables as reserved_tables_count' => function ($query) {
+                $query->where('status', 'reserved');
+            }
+        ])->get();
+
+        return response()->json([
+            'status' => true,
+            'data' => $floors
+        ]);
+    }
+
+
 }

@@ -26,9 +26,16 @@ Route::post('/terminals/updateIP', [TerminalController::class, 'updateIP']);
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/orders', [OrderController::class, 'index']);
+    Route::get('/orders/in-progress', [OrderController::class, 'inProgress']); // put before {id}
     Route::get('/orders/{id}', [OrderController::class, 'show']);
     Route::post('/orders', [OrderController::class, 'store']);
     Route::patch('/orders/{id}/cancel', [OrderController::class, 'cancel']);
+    Route::post('/orders/{id}/complete', [OrderController::class, 'complete']);
+    Route::post('/orders/complete-all', [OrderController::class, 'completeAll']);
+    // Update an existing order (add/update items)
+    Route::put('orders/{id}', [OrderController::class, 'update']);
+
+
     Route::post(
         '/orders/{order}/collect-remaining',
         [OrderController::class, 'collectRemaining']
@@ -42,11 +49,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/addtables', [TableController::class, 'store']);
     Route::put('tables/{id}', [TableController::class, 'update']);
     Route::delete('tables/{id}', [TableController::class, 'destroy']);
+    Route::get('/tables/reserved', [TableController::class, 'reservedTables']);
+    Route::get('tables/reserved/waiter/{waiterId}', [TableController::class, 'reservedTablesByWaiter']);
+    Route::post('/tables/{id}/divide', [TableController::class, 'divideTable']);
+
+
 
     Route::get('/getallfloors', [FloorController::class, 'index']);
     Route::post('/addfloors', [FloorController::class, 'store']);
     Route::put('floors/{id}', [FloorController::class, 'update']);
     Route::delete('floors/{id}', [FloorController::class, 'destroy']);
+    Route::get('/floors/reserved-count', [FloorController::class, 'floorsWithReservedCount']);
 
 
 

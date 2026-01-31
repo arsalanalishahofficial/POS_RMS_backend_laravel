@@ -49,14 +49,24 @@ class Handler extends ExceptionHandler
     }
 
     public function render($request, Throwable $exception)
-{
-    if ($request->wantsJson()) {
-        return response()->json([
-            'status' => false,
-            'message' => $exception->getMessage()
-        ], method_exists($exception, 'getStatusCode') ? $exception->getStatusCode() : 500);
+    {
+        if ($request->expectsJson() || $request->is('api/*')) {
+            $status = 500;
+            $message = $exception->getMessage();
+
+            // Optional: handle ModelNotFoundException
+            if ($exception instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                $status = 404;
+                $message = 'Resource not found';
+            }
+
+            return response()->json([
+                'status' => false,
+                'message' => $message,
+            ], $status);
+        }
+
+        return parent::render($request, $exception);
     }
 
-    return parent::render($request, $exception);
-}
 }

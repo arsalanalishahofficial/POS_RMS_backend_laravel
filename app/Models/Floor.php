@@ -15,4 +15,10 @@ class Floor extends Model
     ];
 
     protected $dates = ['deleted_at'];
+
+    public function tables()
+    {
+        return $this->hasMany(Table::class, 'floor_id');
+    }
+
 }
