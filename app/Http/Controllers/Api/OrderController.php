@@ -54,6 +54,93 @@ class OrderController extends Controller
     }
 
     // =========================
+// GET DELIVERY ORDERS BY RIDER AND DELIVERY STATUS
+// =========================
+    public function deliveryOrdersByRider(Request $request, $riderId)
+    {
+        // Validate delivery_status if provided
+        $request->validate([
+            'delivery_status' => 'nullable|in:preparing,delivered,cash_collected,cancelled'
+        ]);
+
+        $deliveryStatus = $request->delivery_status;
+
+        // Fetch delivery orders for this rider
+        $query = Order::with(['items.menuItem', 'customer', 'rider', 'waiter', 'table', 'floor'])
+            ->where('type', 'delivery')
+            ->where('rider_id', $riderId);
+
+        if ($deliveryStatus) {
+            $query->where('delivery_status', $deliveryStatus);
+        }
+
+        $orders = $query->latest()->get();
+
+        if ($orders->isEmpty()) {
+            return response()->json([
+                'status' => false,
+                'message' => $deliveryStatus
+                    ? "No delivery orders found for this rider with status '$deliveryStatus'."
+                    : "No delivery orders found for this rider.",
+            ]);
+        }
+
+        // Map orders for response
+        $data = $orders->map(function ($order) {
+            $array = (new OrderResource($order))->toArray(request());
+
+            // Add separate date & time
+            $array['date'] = $order->created_at->format('Y-m-d');
+            $array['time'] = $order->created_at->format('H:i:s');
+
+            // Remove timestamps
+            unset($array['created_at'], $array['updated_at']);
+
+            // Remove empty nested relations (works for empty objects or arrays)
+            foreach (['waiter', 'table', 'floor'] as $relation) {
+                if (!isset($array[$relation]) || empty((array) $array[$relation])) {
+                    unset($array[$relation]);
+                }
+            }
+
+            return $array;
+        });
+
+        // Delivered orders totals
+        $deliveredOrders = $orders->where('delivery_status', 'delivered');
+        $totalDeliveredOrderPrice = $deliveredOrders->sum('net_total');
+        $totalDeliveredDeliveryCharges = $deliveredOrders->sum('delivery_charge');
+        $totalDeliveredOrdersCount = $deliveredOrders->count();
+
+        // Cash collected totals
+        $cashCollectedOrders = $orders->where('delivery_status', 'cash_collected');
+        $cashCollected = $cashCollectedOrders->sum('net_total');
+        $totalCashCollectedOrdersCount = $cashCollectedOrders->count();
+
+        // Prepare summary
+        $summary = [
+            'total_orders' => $orders->count(),
+            'total_delivered_orders' => $totalDeliveredOrdersCount, // count of delivered orders
+            'total_cash_collected_orders' => $totalCashCollectedOrdersCount, // count of cash collected orders
+            'cash_collected' => $cashCollected, // sum of cash collected orders
+
+            'total_delivered_order_price' => $totalDeliveredOrderPrice, // only delivered orders
+            'total_delivery_charges' => $totalDeliveredDeliveryCharges, // only delivered orders
+            'grand_total' => $totalDeliveredOrderPrice + $totalDeliveredDeliveryCharges,
+        ];
+
+        return response()->json([
+            'status' => true,
+            'data' => $data,
+            'summary' => $summary,
+            'message' => $deliveryStatus
+                ? "Delivery orders for this rider retrieved with status '$deliveryStatus'."
+                : "Delivery orders for this rider retrieved successfully."
+        ]);
+    }
+
+
+    // =========================
     // LIST IN-PROGRESS ORDERS
     // =========================
     public function inProgress()
@@ -329,7 +416,6 @@ class OrderController extends Controller
 
         DB::beginTransaction();
         try {
-
             $order = Order::with('items')
                 ->where('receipt_number', $receiptNumber)
                 ->where('type', 'takeaway')
@@ -341,47 +427,54 @@ class OrderController extends Controller
                 $price = $itemData['price'] ?? $menuItem->price;
                 $newQty = (int) $itemData['qty'];
 
-                $existingItem = $order->items
-                    ->firstWhere('menu_item_id', $menuItem->id);
+                $existingItem = $order->items->firstWhere('menu_item_id', (int) $menuItem->id);
 
-                /**
-                 * 🟢 NEW ITEM ADD
-                 */
+                // 🔹 NEW ITEM ADDED
                 if (!$existingItem && $newQty > 0) {
-                    OrderItem::create([
+                    $orderItem = OrderItem::create([
                         'order_id' => $order->id,
                         'menu_item_id' => $menuItem->id,
                         'quantity' => $newQty,
                         'price' => $price,
                         'total' => $price * $newQty,
                     ]);
+
+                    OrderItemAdjustment::create([
+                        'order_id' => $order->id,
+                        'order_item_id' => $orderItem->id,
+                        'menu_item_id' => $menuItem->id,
+                        'receipt_number' => $order->getOriginal('receipt_number'),
+                        'old_quantity' => 0,
+                        'new_quantity' => $newQty,
+                        'adjusted_quantity' => $newQty,
+                        'price' => $price,
+                        'amount_impact' => $price * $newQty,
+                        'action' => 'added',
+                        'user_id' => auth()->id(),
+                        'reason' => $request->reason,
+                        'ip_address' => request()->ip(),
+                    ]);
+
                     continue;
                 }
 
-                if (!$existingItem) {
+                if (!$existingItem)
                     continue;
-                }
 
                 $oldQty = $existingItem->quantity;
 
-                /**
-                 * 🔴 ITEM CANCEL
-                 */
+                // 🔴 CANCEL ITEM
                 if ($newQty === 0) {
-
                     OrderItemAdjustment::create([
                         'order_id' => $order->id,
                         'order_item_id' => $existingItem->id,
                         'menu_item_id' => $menuItem->id,
-                        'receipt_number' => $order->receipt_number,
-
+                        'receipt_number' => $order->getOriginal('receipt_number'),
                         'old_quantity' => $oldQty,
                         'new_quantity' => 0,
                         'adjusted_quantity' => $oldQty,
-
                         'price' => $price,
                         'amount_impact' => $oldQty * $price,
-
                         'action' => 'cancelled',
                         'user_id' => auth()->id(),
                         'reason' => $request->reason,
@@ -392,26 +485,19 @@ class OrderController extends Controller
                     continue;
                 }
 
-                /**
-                 * 🟠 QUANTITY DECREASE
-                 */
+                // 🟠 DECREASE QUANTITY
                 if ($newQty < $oldQty) {
-
-                    $difference = $oldQty - $newQty;
-
+                    $diff = $oldQty - $newQty;
                     OrderItemAdjustment::create([
                         'order_id' => $order->id,
                         'order_item_id' => $existingItem->id,
                         'menu_item_id' => $menuItem->id,
-                        'receipt_number' => $order->receipt_number,
-
+                        'receipt_number' => $order->getOriginal('receipt_number'),
                         'old_quantity' => $oldQty,
                         'new_quantity' => $newQty,
-                        'adjusted_quantity' => $difference,
-
+                        'adjusted_quantity' => $diff,
                         'price' => $price,
-                        'amount_impact' => $difference * $price,
-
+                        'amount_impact' => $diff * $price,
                         'action' => 'decreased',
                         'user_id' => auth()->id(),
                         'reason' => $request->reason,
@@ -419,9 +505,7 @@ class OrderController extends Controller
                     ]);
                 }
 
-                /**
-                 * ✏️ UPDATE ITEM (increase or decrease)
-                 */
+                // ✏️ UPDATE ITEM (increase or decrease)
                 $existingItem->update([
                     'quantity' => $newQty,
                     'price' => $price,
@@ -429,9 +513,8 @@ class OrderController extends Controller
                 ]);
             }
 
-            // 🔄 Recalculate totals
+            // 🔄 RECALCULATE TOTALS
             $order->load('items');
-
             $grandTotal = $order->items->sum('total');
             $netTotal = $grandTotal - ($order->discount ?? 0);
 
@@ -444,7 +527,7 @@ class OrderController extends Controller
 
             return response()->json([
                 'status' => true,
-                'message' => 'Takeaway order updated successfully',
+                'message' => 'Takeaway order updated & adjustments logged successfully',
             ]);
 
         } catch (\Exception $e) {
@@ -718,7 +801,7 @@ class OrderController extends Controller
         DB::beginTransaction();
         try {
             // Fetch order by receipt number
-            $order = Order::with(['items.menuItem', 'waiter', 'table', 'floor', 'customer', 'rider'])
+            $order = Order::with(['items.menuItem', 'customer', 'rider'])
                 ->where('receipt_number', $receiptNumber)
                 ->first();
 
@@ -730,32 +813,29 @@ class OrderController extends Controller
                 return response()->json(['status' => false, 'message' => 'Order already cancelled'], 400);
             }
 
-            // Cancel the order
             $updateData = [
                 'status' => 'cancelled',
                 'is_cancelled' => true,
+                'net_total' => $order->grand_total - ($order->discount ?? 0),
             ];
 
-            // If delivery, cancel delivery_status
             if ($order->type === 'delivery') {
                 $updateData['delivery_status'] = 'cancelled';
+                $updateData['delivery_charge'] = 0;
+                $updateData['cash_received'] = 0;
+                $updateData['change_due'] = 0;
             }
 
             $order->update($updateData);
 
-            // Free the table if dine-in
-            if ($order->type === 'dinein' && $order->table_id) {
-                Table::where('id', $order->table_id)->update(['status' => 'free']);
-            }
-
             DB::commit();
 
             // Reload relations for response
-            $order->load(['items.menuItem', 'waiter', 'table', 'floor', 'customer', 'rider']);
+            $order->load(['items.menuItem', 'customer', 'rider']);
 
             return response()->json([
                 'status' => true,
-                'message' => 'Order cancelled successfully',
+                'message' => ucfirst($order->type) . ' order cancelled successfully',
                 'data' => new OrderResource($order),
             ]);
 
@@ -764,6 +844,7 @@ class OrderController extends Controller
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
 
     // =========================
 // CANCEL DINE-IN ORDER BY ORDER ID

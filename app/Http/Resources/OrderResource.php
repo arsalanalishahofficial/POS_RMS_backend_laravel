@@ -40,7 +40,6 @@ class OrderResource extends JsonResource
                 'name' => $this->customer->name,
                 'phone' => $this->customer->phone,
                 'address' => $this->customer->address,
-                'area' => $this->customer->area,
             ]),
 
             'rider' => $this->when($this->rider, fn() => [

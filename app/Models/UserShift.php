@@ -9,14 +9,20 @@ class UserShift extends Model
 {
     use HasFactory;
 
-     protected $fillable = [
+    protected $fillable = [
         'user_id',
         'shift_id',
+        'terminal_id',
         'login_at',
-        'logout_at'
+        'logout_at',
     ];
 
-     public function user()
+    public function terminal()
+    {
+        return $this->belongsTo(Terminal::class);
+    }
+
+    public function user()
     {
         return $this->belongsTo(User::class);
     }

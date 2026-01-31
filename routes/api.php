@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\WaiterController;
 use App\Http\Controllers\Api\TableController;
 use App\Http\Controllers\Api\RiderController;
+use App\Http\Controllers\Api\OrderItemAdjustmentController;
 
 // -------------------
 // PUBLIC ROUTES
@@ -38,8 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/takeaway/{receiptNumber}', [OrderController::class, 'takeawayOrderByreceiptNumber']);
     Route::patch('/orders/{receiptNumber}/cancel', [OrderController::class, 'cancel']);
     Route::patch('/orders/{id}/cancelDineInByOrderId', [OrderController::class, 'cancelDineInByOrderId']);
+    Route::put('/takeaway-order/{receiptNumber}/update-items', [OrderController::class, 'updateTakeawayByReceipt']);
 
-    
     Route::get('/orders/dinein/table/{tableId}', [OrderController::class, 'dineInOrderByTable']);
     Route::post('/orders/dinein/{id}/complete', [OrderController::class, 'complete']);
     Route::post('/orders/dinein/complete-all', [OrderController::class, 'completeAll']);
@@ -52,11 +53,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders/delivery/bulk-status', [OrderController::class, 'bulkChangeDeliveryStatus']);
     Route::get('/orders/riders/{riderId}/stats', [OrderController::class, 'riderStats']);
     Route::get('/orders/riders/stats', [OrderController::class, 'allRidersStats']);
+    Route::get('/orders/riders/{riderId}/delivery-orders', [OrderController::class, 'deliveryOrdersByRider']);
 
 
     Route::get('/orders/in-progress', [OrderController::class, 'inProgress']);
     Route::post('/orders', [OrderController::class, 'store']);
     Route::put('/orders/update/{id}', [OrderController::class, 'update']);
+
+
+
+    Route::get('/order-item-adjustments/report', [OrderItemAdjustmentController::class, 'currentShiftReport']);
+
+
 
 
     // -------------------

@@ -12,17 +12,16 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id',
         'menu_item_id',
-        'quantity',         
+        'quantity',
         'price',
         'total'
     ];
 
     protected $casts = [
-        'qty' => 'integer',
+        'quantity' => 'integer',
         'price' => 'float',
         'total' => 'float'
     ];
-
 
     public function order()
     {
@@ -33,4 +32,10 @@ class OrderItem extends Model
     {
         return $this->belongsTo(MenuItem::class);
     }
+
+    public function adjustments()
+    {
+        return $this->hasMany(OrderItemAdjustment::class);
+    }
+
 }

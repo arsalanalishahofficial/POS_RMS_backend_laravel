@@ -54,4 +54,15 @@ class OrderItemAdjustment extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function isCancelled()
+    {
+        return $this->action === 'cancelled';
+    }
+
+    public function isDecreased()
+    {
+        return $this->action === 'decreased';
+    }
+
 }
